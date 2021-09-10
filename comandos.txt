@@ -1,0 +1,367 @@
+#Exemplos RDD:
+
+#Python
+rddArquivo = sc.textFile ("hdfs://meucluster/data/arquivo.txt")
+
+#Scala
+val rddArquivo = sc.textFile("hdfs:// meucluster/data/arquivo.txt")
+
+#Java
+JavaRDD<String> rddArquivo = sc.textFile("hdfs://meucluster/data/arquivo.txt");
+
+#Terminal:
+
+#Interativo:
+#acessa hdfs, cloud, preparar o codigo. nao é usado para produção. 
+
+#Uso interativo: 
+PySpark
+
+#Uso interativo: 
+Scala:
+
+#Uso não-interativo (para produção):
+#spark-submit:
+$ spark-submit \
+--master yarn \
+--queue "SquadFI" \ #fila, boa pratica
+--name "[Programa Spark 123] ETL 999" \
+--driver-memory 2G \
+--executor-memory 2G \
+--executor-cores 1 \
+--proxy-user hive \
+--conf "spark.driver.maxResultSize=16g" \
+--conf "spark.dynamicAllocation.enabled=true" \
+--conf "spark.shuffle.service.enabled=true" \
+--conf "spark.shuffle.service.port=7337" \
+--conf "spark.dynamicAllocation.initialExecutors=10" \
+--conf "spark.dynamicAllocation.minExecutors=10" \
+--conf "spark.dynamicAllocation.maxExecutors=80" \
+--conf "spark.yarn.driver.memoryOverhead=2000" \
+--conf "spark.yarn.executor.memoryOverhead=2000" \
+--driver-java-options "-Djavax.security.auth.useSubjectCredsOnly=false" \
+--jars commons-csv-1.2.jar,spark-csv_2.11-1.5.0.jar \
+Main.py <parametro 1> <parametro 2> <parametro N>
+
+#Iniciando
+$ pyspark --master local
+
+# Modo não interativo (aplicativo em Spark-submit)
+from pyspark import SparkContext
+sc = SparkContext ("local [*]")
+# o código do seu aplicativo ...
+
+# PySpark
+from pyspark import SparkContext, HiveContext
+conf = SparkConf().setAppName ('app').setMaster (master)
+sc = SparkContext (conf)
+hive_context = HiveContext (sc)
+hive_context.sql ("select * from tableName limit 0")
+
+#// Scala – Acessando o Context
+import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.sql.hive.HiveContext
+val sparkConf = new SparkConf().setAppName("app").setMaster("yarn")
+val sc = new SparkContext(sparkConf)
+val hiveContext = new HiveContext(sc)
+hiveContext.sql("select * from tableName limit 0")
+
+#Criar um Spark Session com suporte a Hive:
+
+# PySpark
+from pyspark.sql import SparkSession
+spark_session = SparkSession.builder.enableHiveSupport().getOrCreate()
+# Duas maneiras de acessar o contexto do spark a partir da sessão do spark
+spark_context = spark_session._sc
+spark_context = spark_session.sparkContext
+
+
+#criação de DStreams são descritas aqui:
+socketTextStream()
+StreamingContext.socketTextStream (hostname, port, storageLevel = StorageLevel (True, True, False, False, 2))
+
+#O storageLevelargumento que define o storage level padrão MEMORY_AND_DISK_SER_2
+
+from pyspark.streaming import StreamingContext
+ssc = StreamingContext(sc, 1)
+lines = ssc.socketTextStream('localhost', 9999)
+counts = lines.flatMap(lambda line: line.split(" ")).map(lambda word: (word, 1)).reduceByKey(lambda a, b: a+b)
+counts.pprint()
+ssc.start()
+ssc.awaitTermination()
+
+#Spark Streaming
+
+
+# Definindo os df
+path_dataset1 = "/FileStore/tables/country_vaccinations.csv"
+path_rdd = "/FileStore/tables/arquivo_rdd.txt"
+
+
+# Leitura de Dataframe
+# qdo define read já sabe que é dataframe, do contrário é um rdd. 
+# header define primeira coluna como cabeçalho
+# option, InferSchema, tenta adivinhar os tipos
+# a partir da versão 2 do spark
+df1 = spark.read.format("csv").option("header","true").load(path_dataset1)
+
+## outra opção:
+# delimitado por virgula:
+df1 = spark.read.csv(path_dataset1)
+
+# se não for delimitado por vírgula: .option("delimiter","|"):
+df1 = spark.read.option("header","true").option("inferSchema","true").csv(path_dataset1)
+# "inferSchema","true" tenta definir os esquemas automaticamente.
+
+## Exibindo dataframe
+df1.show(2)
+df1.columns # so mostra colunas
+df1.dtypes # mostra tipos
+df1.printschema # mostra campos e tipos
+
+# fazendo ingestão em RAW
+df1.write.format("parquet").save("/FileStore/tables/RAW_ZONE_PARQUET/")
+
+# Sobrescrevendo um arquivo:
+# quebra o arquivo gravado em 2
+df1.repartition(2).write.format("parquet").mode("overwrite").save("/FileStore/tables/RAW_ZONE_PARQUET/")
+#coalesce (sao parecidos, mas o repartition divide de 2 para mais), o coalesce tem o limite de partições 9 para menos.
+
+# exemplo:
+path = "/../../arqExemplo"
+
+# Criando um dataframe a partir de um JSON
+# caso tenha várias linhas, vários blocos, json estruturado: .option("multiline","true")
+dataframe = spark.read.json(path)
+
+# Criando um dataframe a partir de um ORC
+dataframe = spark.read.orc(path)
+
+# Criando um dataframe a partir de um PARQUET
+dataframe = spark.read.parquet(path)
+
+# Leitura de um RDD
+rdd = sc.textFile(path_rdd)
+#rdd.show() = Errado, não é possível exibir um SHOW() de um RDD, somente um Dataframe
+rdd.collect()
+
+# abrindo RDD em csv
+dfQualquer = spark.read.format("csv").load(path_rdd)
+display(dfQualquer) # função do databricks
+
+# Criando uma tabela temporária
+nome_tabela_temporiaria = "tempTableDataFrame1"
+df1.createOrReplaceTempView(nome_tabela_temporiaria)
+
+# Criando uma tabela temporária 2
+nome_tabela_temporiaria = "tempTableDataFrame2"
+df1.createOrReplaceTempView(nome_tabela_temporiaria)
+
+# Lendo a tabela temporaria opcao 1
+spark.read.table(nome_tabela_temporiaria).show()
+
+# Lendo a tabela temporaria opcao 2
+spark.sql("SELECT * FROM tempTableDataFrame1").show()
+spark.sql("SELECT country, iso_code FROM tempTableDataFrame2").show()
+spark.sql("SELECT count(*) tt, country FROM tempTableDataFrame2 Group By country").show()
+
+# cria um df com 3 registros
+df3 = spark.sql("SELECT count(*) tt, country FROM tempTableDataFrame2 Group By country")
+df3.show(3)
+df3.dtypes
+
+# Visualização do Databricks
+display(spark.sql("SELECT * FROM tempTableDataFrame1"))
+
+# Scala
+# functions call concat ...etc []
+#import org.apache.spark.sql.functions._
+
+# Python
+from pyspark.sql.functions import col, column
+
+# Usando function col ou column
+# servem para a mesma coisa. 
+df1.select(col("country"), col("date"), column("iso_code")).show()
+
+# Usando selectExpr
+df1.selectExpr("country", "date", "iso_code").show()
+
+# Scala import
+# org.apache.spark.sql.types._
+
+# importando sql types
+from pyspark.sql.types import *
+
+# Criando um Schema manualmente no PySpark
+dataframe_ficticio = StructType([
+
+StructField("col_String_1", StringType()),
+StructField("col_Integer_2", IntegerType()),
+StructField("col_Decimal_3", DecimalType())
+])
+dataframe_ficticio
+
+# Função para gerar Schema (campos/colunas/nomes de colunas)
+# Scala
+org.apache.spark.sql.types._
+def getSchema(fields : Array[StructField]) : StructType = {
+new StructType(fields)
+}
+
+# PySpark
+def getSchema(fields):
+return StructType(fields)
+
+schema = getSchema([StructField("coluna1", StringType()), StructField("coluna2", StringType()), StructField("coluna3",
+StringType())])
+
+#Show
+df1.show(2)
+
+#Take
+df1.take(2)
+
+# Gravando um novo CSV
+path_destino="/FileStore/tables/CSV/"
+nome_arquivo="arquivo.csv"
+path_geral= path_destino + nome_arquivo
+df1.write.format("csv").mode("overwrite").option("sep", "\t").save(path_geral)
+
+# Gravando um novo JSON
+path_destino="/FileStore/tables/JSON/"
+nome_arquivo="arquivo.json"
+path_geral= path_destino + nome_arquivo
+df1.write.format("json").mode("overwrite").save(path_geral)
+
+# Gravando um novo PARQUET
+path_destino="/FileStore/tables/PARQUET/"
+nome_arquivo="arquivo.parquet"
+path_geral= path_destino + nome_arquivo
+df1.write.format("parquet").mode("overwrite").save(path_geral)
+
+# Gravando um novo ORC
+path_destino="/FileStore/tables/ORC/"
+nome_arquivo="arquivo.orc"
+path_geral= path_destino + nome_arquivo
+df1.write.format("orc").mode("overwrite").save(path_geral)
+
+# Outros tipos de SELECT
+#Diferentes formas de selecionar uma coluna
+from pyspark.sql.functions import *
+
+df1.select("country").show(5)
+df1.select('country').show(5)
+df1.select(col("country")).show(5)
+df1.select(column("country")).show(5)
+df1.select(expr("country")).show(5)
+
+# Define uma nova coluna com um valor constante
+# udf (user definition function) funcões em python para spark. ex. função que divide.
+df2 = df1.withColumn("nova_coluna", lit(1))
+
+# Adicionar coluna
+teste = expr("total_vaccinations < 40")
+df1.select("country", "total_vaccinations").withColumn("teste", teste).show(5)
+
+# Renomear uma coluna
+df1.select(expr("total_vaccinations as total_de_vacinados")).show(5)
+df1.select(col("country").alias("pais")).show(5)
+df1.select("country").withColumnRenamed("country", "pais").show(5)
+
+# Remover uma coluna
+df3 = df1.drop("country")
+df3.columns
+
+
+
+# Filtrando dados e ordenando
+# where() é um alias para filter().
+
+# Seleciona apenas os primeiros registros da coluna "total_vaccinations"
+df1.filter(df1.total_vaccinations > 55).orderBy(df1.total_vaccinations).show(2)
+
+# Filtra por país igual Argentina
+df1.select(df1.total_vaccinations, df1.country).filter(df1.country == "Argentina").show(5)
+
+# Filtra por país diferente Argentina
+df1.select(df1.total_vaccinations, df1.country).where(df1.country != "Argentina").show(5) # python type
+
+
+
+# Filtrando dados e ordenando
+# Mostra valores únicos
+df1.select("country").distinct().show()
+# Especificando vários filtros em comando separados
+filtro_vacinas = df1.total_vaccinations < 100
+filtro_pais = df1.country.contains("Argentina")
+df1.select(df1.total_vaccinations, df1.country, df1.vaccines).where(df1.vaccines.isin("Sputnik V", "Sinovac")).filter(filtro_vacinas).show(5)
+df1.select(df1.total_vaccinations, df1.country, df1.vaccines).where(df1.vaccines.isin("Sputnik V",
+"Sinovac")).filter(filtro_vacinas).withColumn("filtro_pais", filtro_pais).show(5)
+
+
+
+#Convertendo dados
+df5 = df1.withColumn("PAIS", col("country").cast("string").alias("PAIS"))
+df5.select(df5.PAIS).show(2)
+
+# Trabalhando com funções
+# Usando funções
+df1.select(upper(df1.country)).show(3)
+df1.select(lower(df1.country)).show(4)
+
+
+# Criando um df generico:
+d = [{'name':'Alice','age': 1}]
+df_A = spark.createDataFrame(d)
+df_A.show()
+
+# cria dff1 a partir do rdd1
+rdd1 = [ {},{}, ....
+]
+dff1 = spark.createDataFrame(rdd1)
+dff1.show()
+
+# cria dff2 a partir do rdd2
+rdd2 = [ {},{}, ....
+]
+dff2 = spark.createDataFrame(rdd2)
+dff2.show()
+
+# joins
+
+join type = "left_ant1"
+join_condition = dff1.nome == dff2.nome
+df3 = dff1.join(dff2, join_condition, join_type)
+df3.show()
+
+
+
+
+
+
+
+Referências
+
+Documentação: https://spark.apache.org/docs/2.4.0/api/python/pyspark.sql.html
+
+Safari Books: 
+https://www.safaribooksonline.com/
+
+
+DB105 - Spark Programming (reference guide)
+Certificações Cloudera: 
+https://www.cloudera.com/about/training/certification/cca-spark.html
+https://www.cloudera.com/about/training/certification/ccp-data-engineer.html
+
+Certificações Cloudera (CCA 175): https://www.cloudera.com/about/training/certification/cca-spark.html
+
+Certificações Cloudera (DE575): https://www.cloudera.com/about/training/certification/ccp-data-engineer.html
+
+Certificações Databricks: 
+https://academy.databricks.com/category/certifications
+https://academy.databricks.com/exam/INT-ADAS-v2-CT
+
+Referência:
+Criando pipelines de dados eficientes com Spark e Python
+https://web.digitalinnovation.one/course/criando-pipelines-de-dados-eficientes-com-spark-e-python
